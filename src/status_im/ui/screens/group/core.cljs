@@ -12,4 +12,4 @@
       ;;TODO: not sure what this condition is for
       (when (and is-active (>= now timestamp))
         {:db            (update-in db [:chats chat-id :contacts] (partial remove removed-participants-set))
-         :data-store/tx [(chats-store/remove-chat-contacts chat-id removed-participants-set)]}))))
+         :data-store/tx [(chats-store/remove-chat-contacts-tx chat-id removed-participants-set)]}))))

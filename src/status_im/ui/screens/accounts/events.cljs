@@ -17,7 +17,8 @@
             [status-im.transport.message.v1.contact :as message.contact]
             [status-im.transport.message.core :as transport]
             status-im.ui.screens.accounts.create.navigation
-            [status-im.chat.models :as chat.models]))
+            [status-im.chat.models :as chat.models]
+            [status-im.data-store.accounts :as accounts-store]))
 
 ;;;; COFX
 
@@ -55,8 +56,8 @@
                                 :network  network
                                 :networks networks
                                 :address  address)]
-    {:db           (assoc-in db [:accounts/accounts address] enriched-account)
-     :data-store/save-account enriched-account}))
+    {:db                 (assoc-in db [:accounts/accounts address] enriched-account)
+     :data-store/base-tx [(accounts-store/save-account-tx enriched-account)]}))
 
 ;; TODO(janherich) we have this handler here only because of the tests, refactor/improve tests ASAP
 (handlers/register-handler-fx
@@ -103,15 +104,15 @@
   (fn [{{:accounts/keys [accounts] :networks/keys [networks] :as db} :db} [_ id]]
     (let [current-account (get accounts id)
           new-account (assoc current-account :networks networks)]
-      {:db           (assoc-in db [:accounts/accounts id] new-account)
-       :data-store/save-account new-account})))
+      {:db                 (assoc-in db [:accounts/accounts id] new-account)
+       :data-store/base-tx [(accounts-store/save-account-tx new-account)]})))
 
 (defn update-settings [settings {:keys [db] :as cofx}]
   (let [{:accounts/keys [current-account-id accounts]} db
         new-account                                    (-> (get accounts current-account-id)
                                                            (assoc :settings settings))]
-    {:db                      (assoc-in db [:accounts/accounts current-account-id] new-account)
-     :data-store/save-account new-account}))
+    {:db                 (assoc-in db [:accounts/accounts current-account-id] new-account)
+     :data-store/base-tx [(accounts-store/save-account-tx new-account)]}))
 
 (defn account-update
   "Takes effects (containing :db) + new account fields, adds all effects necessary for account update.
@@ -121,8 +122,9 @@
   ([new-account-fields after-update-event {{:accounts/keys [accounts current-account-id] :as db} :db :as cofx}]
    (let [current-account (get accounts current-account-id)
          new-account     (merge current-account new-account-fields)
-         fx              {:db                      (assoc-in db [:accounts/accounts current-account-id] new-account)
-                          :data-store/save-account (assoc new-account :after-update-event after-update-event)}
+         fx              {:db                 (assoc-in db [:accounts/accounts current-account-id] new-account)
+                          :data-store/base-tx [(accounts-store/save-account-tx
+                                                (assoc new-account :after-update-event after-update-event))]}
          {:keys [name photo-path]} new-account]
      (if (or (:name new-account-fields) (:photo-path new-account-fields))
        (handlers-macro/merge-fx cofx fx (transport/send (message.contact/ContactUpdate. name photo-path) nil))

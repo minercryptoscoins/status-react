@@ -1,12 +1,9 @@
 (ns status-im.data-store.messages
-  (:require [cljs.reader :as reader]
-            [cljs.core.async :as async]
+  (:require [cljs.reader :as reader] 
             [re-frame.core :as re-frame]
             [status-im.constants :as constants]
-            [status-im.data-store.realm.core :as core]
-            [status-im.utils.random :as random]
-            [status-im.utils.core :as utils]
-            [status-im.utils.datetime :as datetime]))
+            [status-im.data-store.realm.core :as core] 
+            [status-im.utils.core :as utils]))
 
 (defn- command-type?
   [type]
@@ -25,7 +22,7 @@
   ([chat-id]
    (get-by-chat-id chat-id 0))
   ([chat-id from]
-   (let [messages (-> (core/get-by-field @realm/account-realm :message :chat-id chat-id)
+   (let [messages (-> (core/get-by-field @core/account-realm :message :chat-id chat-id)
                       (core/sorted :timestamp :desc)
                       (core/page from (+ from constants/default-number-of-messages))
                       (core/all-clj :message))]
@@ -34,7 +31,7 @@
 ;; TODO janherich: define as cofx once debug handlers are refactored
 (defn get-log-messages
   [chat-id]
-  (->> (get-by-chat-id chat-id 0 100)
+  (->> (get-by-chat-id chat-id 0)
        (filter #(= (:content-type %) constants/content-type-log-message))
        (map #(select-keys % [:content :timestamp]))))
 
@@ -71,7 +68,7 @@
                         [chat-id (into #{} (map :message-id) user-statuses)]))
                  (group-by :chat-id (-> @core/account-realm
                                         (core/get-by-fields :user-status
-                                                            :and {:whisper-identity current-public-key
+                                                            :and {:whisper-identity (:current-public-key db)
                                                                   :status           :received})
                                         (core/all-clj :user-status)))))))
 
@@ -104,13 +101,8 @@
   (fn [realm]
     (core/create realm
                  :message
-                 (prepare-message message (merge default-values message {:from (or from "anonymous")}))
+                 (prepare-message (merge default-values message {:from (or from "anonymous")}))
                  (core/exists? realm :message :message-id message-id))))
-
-(defn delete
-  [message-id]
-  (when (data-store/exists? message-id)
-    (data-store/delete message-id)))
 
 (defn delete-message-tx
   "Returns tx function for deleting message"
@@ -144,7 +136,7 @@
   "Returns tx function for hiding messages for given chat-id"
   [chat-id]
   (fn [realm]
-    (.map (realm/get-by-field realm :message :chat-id chat-id)
+    (.map (core/get-by-field realm :message :chat-id chat-id)
           (fn [msg _ _]
             (aset msg "show?" false)))))
 

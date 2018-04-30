@@ -11,7 +11,8 @@
             [status-im.chat.models.message :as models.message]
             [status-im.transport.core :as transport]
             [status-im.transport.message.v1.protocol :as protocol]
-            [status-im.transport.utils :as transport.utils]))
+            [status-im.transport.utils :as transport.utils]
+            [status-im.data-store.transport :as transport-store]))
 
 
 ;; NOTE: We ignore the chat-id from the send and receive method.
@@ -29,15 +30,15 @@
                                        cofx)))
   (receive [this _ signature {:keys [db] :as cofx}]
     (handlers-macro/merge-fx cofx
-                       {:shh/add-new-sym-key {:web3       (:web3 db)
-                                              :sym-key    sym-key
-                                              :on-success (fn [sym-key sym-key-id]
-                                                            (re-frame/dispatch [::add-new-sym-key {:chat-id    chat-id
-                                                                                                   :signature  signature
-                                                                                                   :sym-key    sym-key
-                                                                                                   :sym-key-id sym-key-id
-                                                                                                   :message    message}]))}}
-                       (protocol/init-chat chat-id))))
+                             {:shh/add-new-sym-key {:web3       (:web3 db)
+                                                    :sym-key    sym-key
+                                                    :on-success (fn [sym-key sym-key-id]
+                                                                  (re-frame/dispatch [::add-new-sym-key {:chat-id    chat-id
+                                                                                                         :signature  signature
+                                                                                                         :sym-key    sym-key
+                                                                                                         :sym-key-id sym-key-id
+                                                                                                         :message    message}]))}}
+                             (protocol/init-chat chat-id))))
 
 (defn- user-is-group-admin? [chat-id cofx]
   (= (get-in cofx [:db :chats chat-id :group-admin])
@@ -80,8 +81,8 @@
   message/StatusMessage
   (send [this chat-id cofx]
     (handlers-macro/merge-fx cofx
-                       (init-chat-if-new chat-id)
-                       (send-new-group-key this chat-id)))
+                             (init-chat-if-new chat-id)
+                             (send-new-group-key this chat-id)))
   (receive [this chat-id signature {:keys [now db random-id] :as cofx}]
     (let [me (:current-public-key db)]
       ;; we have to check if we already have a chat, or it's a new one
@@ -94,22 +95,22 @@
                                             group-admin)]
             (if (removed me) ;; we were removed
               (handlers-macro/merge-fx cofx
-                                 (models.message/receive
-                                   (models.message/system-message chat-id random-id now
-                                                                  (str admin-name " " (i18n/label :t/removed-from-chat))))
-                                 (models.chat/upsert-chat {:chat-id         chat-id
-                                                           :removed-from-at now
-                                                           :is-active       false})
-                                 (transport/unsubscribe-from-chat chat-id))
+                                       (models.message/receive
+                                        (models.message/system-message chat-id random-id now
+                                                                       (str admin-name " " (i18n/label :t/removed-from-chat))))
+                                       (models.chat/upsert-chat {:chat-id         chat-id
+                                                                 :removed-from-at now
+                                                                 :is-active       false})
+                                       (transport/unsubscribe-from-chat chat-id))
               (handlers-macro/merge-fx cofx
-                                 (models.message/receive
-                                  (models.message/system-message chat-id random-id now
-                                                                 (prepare-system-message  admin-name
-                                                                                          added
-                                                                                          removed
-                                                                                          (:contacts/contacts db))))
-                                 (group/participants-added chat-id added)
-                                 (group/participants-removed chat-id removed)))))
+                                       (models.message/receive
+                                        (models.message/system-message chat-id random-id now
+                                                                       (prepare-system-message  admin-name
+                                                                                                added
+                                                                                                removed
+                                                                                                (:contacts/contacts db))))
+                                       (group/participants-added chat-id added)
+                                       (group/participants-removed chat-id removed)))))
         ;; first time we hear about chat -> create it if we are among participants
         (when (get (set participants) me)
           (models.chat/add-group-chat chat-id chat-name signature participants cofx))))))
@@ -127,11 +128,11 @@
                                        signature)]
       (when (get-in db [:chats chat-id]) ;; chat is present
         (handlers-macro/merge-fx cofx
-                           (models.message/receive
-                            (models.message/system-message chat-id random-id now
-                                                           (str participant-leaving-name " " (i18n/label :t/left))))
-                           (group/participants-removed chat-id #{signature})
-                           (send-new-group-key nil chat-id))))))
+                                 (models.message/receive
+                                  (models.message/system-message chat-id random-id now
+                                                                 (str participant-leaving-name " " (i18n/label :t/left))))
+                                 (group/participants-removed chat-id #{signature})
+                                 (send-new-group-key nil chat-id))))))
 
 (handlers/register-handler-fx
   ::unsubscribe-from-chat
@@ -147,17 +148,17 @@
   (fn [{:keys [db] :as cofx} [{:keys [chat-id message sym-key sym-key-id]}]]
     (let [{:keys [web3]} db]
       (handlers-macro/merge-fx cofx
-                         {:db             (assoc-in db [:transport/chats chat-id :sym-key-id] sym-key-id)
-                          :shh/add-filter {:web3       web3
-                                           :sym-key-id sym-key-id
-                                           :topic      (transport.utils/get-topic chat-id)
-                                           :chat-id    chat-id}
-                          :data-store.transport/save {:chat-id chat-id
-                                                      :chat (-> (get-in db [:transport/chats chat-id])
-                                                                (assoc :sym-key-id sym-key-id)
-                                                                ;;TODO (yenda) remove once go implements persistence
-                                                                (assoc :sym-key sym-key))}}
-                         (message/send (NewGroupKey. chat-id sym-key message) chat-id)))))
+                               {:db             (assoc-in db [:transport/chats chat-id :sym-key-id] sym-key-id)
+                                :shh/add-filter {:web3       web3
+                                                 :sym-key-id sym-key-id
+                                                 :topic      (transport.utils/get-topic chat-id)
+                                                 :chat-id    chat-id}
+                                :data-store/tx  [(transport-store/save-transport-tx {:chat-id chat-id
+                                                                                     :chat (-> (get-in db [:transport/chats chat-id])
+                                                                                               (assoc :sym-key-id sym-key-id)
+                                                                                               ;;TODO (yenda) remove once go implements persistence
+                                                                                               (assoc :sym-key sym-key))}})]}
+      (message/send (NewGroupKey. chat-id sym-key message) chat-id)))))
 
 (handlers/register-handler-fx
   ::add-new-sym-key
@@ -169,11 +170,11 @@
                                :sym-key-id sym-key-id
                                :topic      (transport.utils/get-topic chat-id)
                                :chat-id    chat-id}
-              :data-store.transport/save {:chat-id chat-id
-                                          :chat (-> (get-in db [:transport/chats chat-id])
-                                                    (assoc :sym-key-id sym-key-id)
-                                                    ;;TODO (yenda) remove once go implements persistence
-                                                    (assoc :sym-key sym-key))}}]
+              :data-store/tx  [(transport-store/save-transport-tx {:chat-id chat-id
+                                                                   :chat (-> (get-in db [:transport/chats chat-id])
+                                                                             (assoc :sym-key-id sym-key-id)
+                                                                             ;;TODO (yenda) remove once go implements persistence
+                                                                             (assoc :sym-key sym-key))})]}]
       ;; if new sym-key is wrapping some message, call receive on it as well, if not just update the transport layer
       (if message
         (handlers-macro/merge-fx cofx fx (message/receive message chat-id signature))

@@ -22,7 +22,7 @@
 
 (defn exists?
   [group-id]
-  (realm/exists? @realm/account-realm :contact-group {:group-id group-id}))
+  (realm/exists? @realm/account-realm :contact-group :group-id group-id))
 
 (defn delete
   [group-id]

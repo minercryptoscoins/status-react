@@ -20,7 +20,7 @@
 
 (defn exists?
   [browser-id]
-  (realm/exists? @realm/account-realm :browser {:browser-id browser-id}))
+  (realm/exists? @realm/account-realm :browser :browser-id browser-id))
 
 (defn get-by-id
   [browser-id]

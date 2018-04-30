@@ -8,7 +8,7 @@
 
 (defn exists?
   [chat-id]
-  (realm/exists? @realm/account-realm :transport {:chat-id chat-id}))
+  (realm/exists? @realm/account-realm :transport :chat-id chat-id))
 
 (defn save
   [{:keys [chat-id] :as chat}]

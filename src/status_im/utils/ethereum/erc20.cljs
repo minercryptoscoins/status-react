@@ -91,22 +91,24 @@
   (into {}
         (for [entry entries]
           [(:transactionHash entry)
-           {:block     (-> entry :blockNumber)
-            :hash      (:transactionHash entry)
-            :symbol    (->> entry :address (tokens/address->token chain) :symbol)
-            :from      (-> entry :topics second remove-padding)
-            :to        (-> entry :topics last remove-padding)
-            :value     (-> entry :data ethereum/hex->bignumber)
-            :type      direction
+           {:block         (-> entry :blockNumber)
+            :hash          (:transactionHash entry)
+            :symbol        (->> entry :address (tokens/address->token chain) :symbol)
+            :from          (-> entry :topics second remove-padding)
+            :to            (-> entry :topics last remove-padding)
+            :value         (-> entry :data ethereum/hex->bignumber)
+            :type          direction
 
-            :gas-price 0
-            :nonce     0
-            :data      "0x"
+            :confirmations "0"
 
-            :gas-limit 0
-            :timestamp 0
+            :gas-price     "0"
+            :nonce         "0"
+            :data          "0x"
 
-            :gas-used  0}])))
+            :gas-limit     "0"
+            :timestamp     "0"
+
+            :gas-used      "0"}])))
 
 (defn- response-handler [chain direction error-fn success-fn]
   (fn handle-response

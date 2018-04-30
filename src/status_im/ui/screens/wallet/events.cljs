@@ -66,10 +66,11 @@
 (reg-fx
   :get-transactions
   (fn [{:keys [network account-id success-event error-event]}]
-    (transactions/get-transactions network
+    #_(transactions/get-transactions network
                                    account-id
                                    #(re-frame/dispatch [success-event %])
-                                   #(re-frame/dispatch [error-event %]))))
+                                   #(re-frame/dispatch [error-event %]))
+    (erc20/get-token-transactions network ["0x9e47fb3049f0d9c953f5428ce2e6c3a8321780bf"] :inbound account-id  #(re-frame/dispatch [success-event %]))))
 
 ;; TODO(oskarth): At some point we want to get list of relevant assets to get prices for
 (reg-fx
@@ -129,11 +130,16 @@
                              (clear-error-message :transactions-update)
                              (assoc-in [:wallet :transactions-loading?] true))})))
 
+(defn dedupe-transactions [tx1 tx2]
+  (cond (and (= :ETH (:symbol tx1)) (not= :ETH (:symbol tx2))) tx2
+        (and (= :ETH (:symbol tx2)) (not= :ETH (:symbol tx1))) tx1
+        :else tx1))
+
 (handlers/register-handler-db
   :update-transactions-success
   (fn [db [_ transactions]]
     (-> db
-        (update-in [:wallet :transactions] merge transactions)
+        (update-in [:wallet :transactions] merge-with dedupe-transactions transactions)
         (assoc-in [:wallet :transactions-loading?] false))))
 
 (handlers/register-handler-db

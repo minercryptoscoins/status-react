@@ -64,7 +64,7 @@
     (:postponed :pending)   (transaction-icon :icons/arrow-right components.styles/color-gray4-transparent components.styles/color-gray7)
     (throw (str "Unknown transaction type: " k))))
 
-(defn render-transaction [{:keys [hash from-contact to-contact to from type value time-formatted] :as transaction}]
+(defn render-transaction [{:keys [hash from-contact to-contact to from type value time-formatted symbol] :as transaction}]
   (let [[label contact address
          contact-accessibility-label
          address-accessibility-label] (if (inbound? type)
@@ -84,7 +84,7 @@
            (->> value (money/wei-> :eth) money/to-fixed str)]
           " "
           [react/text {:accessibility-label :currency-text}
-           (clojure.string/upper-case (name :eth))]]
+           (clojure.string/upper-case (name symbol))]]
          [react/text {:style styles/tx-time}
           time-formatted]]
         [react/view {:style styles/address-row}
@@ -220,16 +220,12 @@
         :unsigned-transactions unsigned-list
         react/view)]]))
 
-(defn- pretty-print-asset [symbol amount & [with-currency?]]
-  (let [token (case symbol
-                ;; TODO (jeluard) Format tokens amount once tokens history is supported
-                :ETH :eth
-                (throw (str "Unknown asset symbol: " symbol)))]
-    (if amount
-      (if with-currency?
-        (money/wei->str token amount)
-        (->> amount (money/wei-> token) money/to-fixed str))
-      "...")))
+(defn- pretty-print-asset [symbol amount]
+  (if amount
+    (if (= :ETH symbol)
+      (->> amount (money/wei-> :eth) money/to-fixed str)
+      (-> amount (money/token->unit 18) money/to-fixed str))
+    "..."))
 
 (defn details-header [{:keys [value date type symbol]}]
   [react/view {:style styles/details-header}
